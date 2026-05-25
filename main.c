@@ -100,22 +100,30 @@ int main(int argc, char *argv[]) {
         size_t nread;
 
         if (mode == 'e') {
-            while ((nread = fread(block, 1, 127, fin)) > 0) {
+            // Encryption: read up to 126 bytes, encrypt to 128 bytes
+            // (1 byte reserved for length prefix)
+            while ((nread = fread(block, 1, 126, fin)) > 0) {
                 rsa_encrypt(block, (int)nread, n, e, out, 128);
                 fwrite(out, 1, 128, fout);
             }
         } else {
-            // RSA decryption: read 128 bytes, decrypt, write actual message length
+            // Decryption: read 128 bytes, decrypt to variable length
             while ((nread = fread(block, 1, 128, fin)) > 0) {
                 uint8_t decrypted[128];
+                memset(decrypted, 0, 128);
                 rsa_decrypt(block, (int)nread, n, d, decrypted, 128);
 
-                // First byte contains the original message length
-                uint8_t msg_len = decrypted[0];
-                if (msg_len > 126) msg_len = 126;  // Safety check
+                // First byte contains original message length
+                int original_len = decrypted[0];
+                if (original_len < 0 || original_len > 126) {
+                    fprintf(stderr, "Warning: Invalid message length %d, writing 127 bytes\n", original_len);
+                    original_len = 127;
+                }
 
-                // Write only the actual message bytes
-                fwrite(decrypted + 1, 1, msg_len, fout);
+                // Write only the actual decrypted message (skip length byte)
+                if (original_len > 0) {
+                    fwrite(&decrypted[1], 1, original_len, fout);
+                }
             }
         }
     } else {
@@ -139,8 +147,8 @@ int main(int argc, char *argv[]) {
 // Decrypt: .\cmake-build-debug\Latino_encrypt.exe -d output.enc -k key.bin -o decrypted.txt -a salsa20
 //
 // Generate RSA keys and encrypt/decrypt with:
-// .\cmake-build-debug\Latino_encrypt.exe -g -k rsa_key.bin -a rsa
-// .\cmake-build-debug\Latino_encrypt.exe -e plaintext.txt -k rsa_key.bin -o output.enc -a rsa
-// .\cmake-build-debug\Latino_encrypt.exe -d output.enc -k rsa_key.bin -o decrypted.txt -a rsa
+// .\cmake-build-debug\Latino_encrypt -g -k rsa_key.bin -a rsa
+// .\cmake-build-debug\Latino_encrypt -e plaintext.txt -k rsa_key.bin -o output.enc -a rsa
+// .\cmake-build-debug\Latino_encrypt -d output.enc -k rsa_key.bin -o decrypted.txt -a rsa
 // Compare the texts : Compare-Object (Get-Content .\plaintext.txt) (Get-Content .\decrypted.txt)
-//if this returns nothing yu are good
+// If this returns nothing, you are good!

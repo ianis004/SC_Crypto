@@ -51,14 +51,15 @@ void rsa_encrypt(const uint8_t *msg, int mlen, const uint8_t *n, const uint8_t *
     bn_init(&m); bn_init(&exp); bn_init(&mod); bn_init(&res);
     memset(out, 0, olen); // Clear output buffer
 
-    // Create padded message: [1 byte length][message][rest is zeros]
-    // This preserves the original message length during decryption
-    uint8_t padded[127];
-    memset(padded, 0, 127);
-    if (mlen > 126) mlen = 126;  // Cap at 126 bytes max message
-    padded[0] = (uint8_t)mlen;   // Store original length in first byte
-    memcpy(padded + 1, msg, mlen);
+    // Prepend length byte: [length(1 byte)] [message(mlen bytes)] [padding zeros]
+    uint8_t padded[128];
+    memset(padded, 0, 128);
+    padded[0] = (uint8_t)mlen;  // Store original message length in first byte
+    if (mlen > 0) {
+        memcpy(&padded[1], msg, mlen);
+    }
 
+    // Convert padded message to BigInt (using first 127 bytes: length + message + padding)
     bn_from_bytes(&m, padded, 127);
     bn_from_bytes(&mod, n, 128);
     bn_from_bytes(&exp, e, 128);
@@ -81,17 +82,22 @@ void rsa_decrypt(const uint8_t *ct, int clen, const uint8_t *n, const uint8_t *d
 
     bn_powmod(&c, &exp, &mod, &res);
 
-    uint8_t padded[128];
-    bn_to_bytes(&res, padded);
+    // Decrypt to temporary buffer
+    uint8_t decrypted[128];
+    bn_to_bytes(&res, decrypted);
 
-    // Extract length from first byte and copy actual message
-    uint8_t msg_len = padded[0];
-    if (msg_len > 126) msg_len = 126;  // Safety check
+    // First byte is the original message length
+    int original_len = decrypted[0];
 
-    memcpy(out, padded + 1, msg_len);
+    // Validate length
+    if (original_len < 0 || original_len > 126) {
+        // Invalid length, just copy what we got
+        memcpy(out, &decrypted[1], (olen > 127) ? 127 : olen);
+        return;
+    }
 
-    // Important: Null-terminate or pad the rest for text files
-    if (olen > msg_len) {
-        memset(out + msg_len, 0, olen - msg_len);
+    // Copy only the original message bytes (skip length byte and any padding)
+    if (original_len > 0) {
+        memcpy(out, &decrypted[1], (original_len < olen) ? original_len : olen);
     }
 }
