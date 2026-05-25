@@ -14,8 +14,11 @@ add_executable(Latino_encrypt
         main.c
         salsa20.c salsa20.h
         chacha20.c chacha20.h
+        stream_modes.c stream_modes.h
         bignr.c bignr.h
         rsa.c rsa.h
 )
 
 target_include_directories(Latino_encrypt PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--stack,8388608")

@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include <string.h>
 
-#define BN_MAX_LIMBS 16 // 16 * 64 = 1024 bits
+#define BN_MAX_LIMBS 32
 
 typedef struct {
     uint64_t limbs[BN_MAX_LIMBS];
@@ -24,5 +24,5 @@ int bn_rand_prime(BigInt *p, int bits);
 int bn_gcd(const BigInt *a, const BigInt *b, BigInt *res);
 int bn_egcd(const BigInt *a, const BigInt *b, BigInt *x, BigInt *y);
 int bn_modinv(const BigInt *a, const BigInt *m, BigInt *res);
-void bn_print(const BigInt *a);
+
 #endif

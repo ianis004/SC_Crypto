@@ -21,7 +21,8 @@ void rsa_genkey(int bits, uint8_t *pub, uint8_t *priv, uint8_t *n_out);
  * @param out   Ciphertext buffer (128 bytes)
  * @param olen  Output buffer size
  */
-void rsa_encrypt(const uint8_t *msg, int mlen, const uint8_t *n, const uint8_t *e, uint8_t *out, int olen);
+void rsa_encrypt(const uint8_t *msg, int mlen, const uint8_t *n, const uint8_t *e,
+                 uint8_t *out, int olen);
 
 /**
  * RSA Decryption (raw, no padding)
@@ -32,6 +33,7 @@ void rsa_encrypt(const uint8_t *msg, int mlen, const uint8_t *n, const uint8_t *
  * @param out   Plaintext buffer (128 bytes)
  * @param olen  Output buffer size
  */
-void rsa_decrypt(const uint8_t *ct, int clen, const uint8_t *n, const uint8_t *d, uint8_t *out, int olen);
+void rsa_decrypt(const uint8_t *ct, int clen, const uint8_t *n, const uint8_t *d,
+                 uint8_t *out, int olen);
 
 #endif
