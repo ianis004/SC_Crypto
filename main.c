@@ -105,9 +105,17 @@ int main(int argc, char *argv[]) {
                 fwrite(out, 1, 128, fout);
             }
         } else {
+            // RSA decryption: read 128 bytes, decrypt, write actual message length
             while ((nread = fread(block, 1, 128, fin)) > 0) {
-                rsa_decrypt(block, (int)nread, n, d, out, 128);
-                fwrite(out, 1, 128, fout);
+                uint8_t decrypted[128];
+                rsa_decrypt(block, (int)nread, n, d, decrypted, 128);
+
+                // First byte contains the original message length
+                uint8_t msg_len = decrypted[0];
+                if (msg_len > 126) msg_len = 126;  // Safety check
+
+                // Write only the actual message bytes
+                fwrite(decrypted + 1, 1, msg_len, fout);
             }
         }
     } else {
@@ -131,7 +139,8 @@ int main(int argc, char *argv[]) {
 // Decrypt: .\cmake-build-debug\Latino_encrypt.exe -d output.enc -k key.bin -o decrypted.txt -a salsa20
 //
 // Generate RSA keys and encrypt/decrypt with:
-// ./Latino_encrypt -e plaintext.txt -k rsa_key.bin -o output.enc -a rsa
-// ./Latino_encrypt -d output.enc -k rsa_key.bin -o decrypted.txt -a rsa
+// .\cmake-build-debug\Latino_encrypt.exe -g -k rsa_key.bin -a rsa
+// .\cmake-build-debug\Latino_encrypt.exe -e plaintext.txt -k rsa_key.bin -o output.enc -a rsa
+// .\cmake-build-debug\Latino_encrypt.exe -d output.enc -k rsa_key.bin -o decrypted.txt -a rsa
 // Compare the texts : Compare-Object (Get-Content .\plaintext.txt) (Get-Content .\decrypted.txt)
 //if this returns nothing yu are good

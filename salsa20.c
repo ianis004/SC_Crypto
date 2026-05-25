@@ -27,12 +27,12 @@ void salsa20_init(uint8_t key[32], uint64_t nonce, uint32_t counter) {
     state[7]  = n[1];
     state[8]  = counter;
     state[9]  = 0x00000000;
-    state[10] = k[4];
-    state[11] = k[5];
-    state[12] = k[6];
-    state[13] = k[7];
-    state[14] = 0x6b206574;  // "te k"
-    state[15] = 0x79622d32;  // "2-by"
+    state[10] = 0x79622d32;  // "2-by"
+    state[11] = k[4];
+    state[12] = k[5];
+    state[13] = k[6];
+    state[14] = k[7];
+    state[15] = 0x6b206574;  // "te k"
 }
 
 static void salsa20_quarter(uint32_t *y, int a, int b, int c, int d) {

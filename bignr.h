@@ -22,7 +22,6 @@ int bn_cmp(const BigInt *a, const BigInt *b);
 int bn_is_zero(const BigInt *a);
 int bn_rand_prime(BigInt *p, int bits);
 int bn_gcd(const BigInt *a, const BigInt *b, BigInt *res);
-int bn_egcd(const BigInt *a, const BigInt *b, BigInt *x, BigInt *y);
 int bn_modinv(const BigInt *a, const BigInt *m, BigInt *res);
 
 #endif

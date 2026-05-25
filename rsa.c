@@ -51,9 +51,17 @@ void rsa_encrypt(const uint8_t *msg, int mlen, const uint8_t *n, const uint8_t *
     bn_init(&m); bn_init(&exp); bn_init(&mod); bn_init(&res);
     memset(out, 0, olen); // Clear output buffer
 
-    bn_from_bytes(&m, msg, mlen);
+    // Create padded message: [1 byte length][message][rest is zeros]
+    // This preserves the original message length during decryption
+    uint8_t padded[127];
+    memset(padded, 0, 127);
+    if (mlen > 126) mlen = 126;  // Cap at 126 bytes max message
+    padded[0] = (uint8_t)mlen;   // Store original length in first byte
+    memcpy(padded + 1, msg, mlen);
+
+    bn_from_bytes(&m, padded, 127);
     bn_from_bytes(&mod, n, 128);
-    bn_from_bytes(&exp, e, 128); // This works perfectly now that e is zero-padded!
+    bn_from_bytes(&exp, e, 128);
 
     bn_powmod(&m, &exp, &mod, &res);
 
@@ -73,5 +81,17 @@ void rsa_decrypt(const uint8_t *ct, int clen, const uint8_t *n, const uint8_t *d
 
     bn_powmod(&c, &exp, &mod, &res);
 
-    bn_to_bytes(&res, out);
+    uint8_t padded[128];
+    bn_to_bytes(&res, padded);
+
+    // Extract length from first byte and copy actual message
+    uint8_t msg_len = padded[0];
+    if (msg_len > 126) msg_len = 126;  // Safety check
+
+    memcpy(out, padded + 1, msg_len);
+
+    // Important: Null-terminate or pad the rest for text files
+    if (olen > msg_len) {
+        memset(out + msg_len, 0, olen - msg_len);
+    }
 }

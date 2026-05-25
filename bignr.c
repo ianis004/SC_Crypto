@@ -3,6 +3,15 @@
 #include <stdlib.h>
 #include <time.h>
 
+static uint64_t rand64(void) {
+    // rand() may return only 15 bits (RAND_MAX=32767 on MSVC).
+    // 5 calls × 15 bits = 75 bits, enough to fill 64.
+    uint64_t r = 0;
+    for (int i = 0; i < 5; i++)
+        r = (r << 15) | ((uint64_t)(rand() & 0x7FFF));
+    return r;
+}
+
 #define LIMB_BITS 64
 
 // Miller-Rabin primality test line 276
@@ -280,7 +289,6 @@ void bn_divmod(const BigInt *a, const BigInt *m, BigInt *num_q, BigInt *num_r) {
     }
     while (num_q->len > 1 && num_q->limbs[num_q->len - 1] == 0) num_q->len--;
 }
-
 // 2. Clear out your old bn_egcd function completely, we can do modular inverse directly and safely here:
 int bn_modinv(const BigInt *a, const BigInt *m, BigInt *res) {
     BigInt old_r, r, x0, x1;
@@ -377,12 +385,15 @@ static int bn_miller_rabin(const BigInt *n, int rounds) {
         bn_init(&x);
         bn_init(&temp);
 
-        a.limbs[0] = 2 + (rand() % 256);
+        a.limbs[0] = 2 + (rand64() % 65536);
         a.len = 1;
 
         bn_powmod(&a, &d, n, &x);
 
-        if (bn_cmp(&x, &(BigInt){.limbs={1}, .len=1}) == 0) continue;
+        BigInt one_cmp;
+        bn_init(&one_cmp);
+        one_cmp.limbs[0] = 1; one_cmp.len = 1;
+        if (bn_cmp(&x, &one_cmp) == 0) continue;
         if (bn_cmp(&x, &n_minus_1) == 0) continue;
 
         int composite = 1;
@@ -409,8 +420,7 @@ int bn_rand_prime(BigInt *p, int bits) {
         p->len = (bits + 63) / 64;
 
         for (int i = 0; i < p->len; i++) {
-            p->limbs[i] = ((uint64_t)rand() << 48) | ((uint64_t)rand() << 32) |
-                         ((uint64_t)rand() << 16) | rand();
+            p->limbs[i] = rand64();
         }
 
         p->limbs[p->len - 1] |= (1ULL << (bits - 1) % 64);
