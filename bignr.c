@@ -38,8 +38,14 @@ static int bn_get_bit(const BigInt *a, int bit) {
 
 static int bn_bitlen(const BigInt *a) {
     if (a->len == 0 || bn_is_zero(a)) return 0;
-    int bits = (a->len - 1) * LIMB_BITS;
-    uint64_t top = a->limbs[a->len - 1];
+
+    // Find the true top limb
+    int actual_len = a->len;
+    while (actual_len > 1 && a->limbs[actual_len - 1] == 0) actual_len--;
+
+    int bits = (actual_len - 1) * LIMB_BITS;
+    uint64_t top = a->limbs[actual_len - 1];
+
     for (int i = 63; i >= 0; i--) {
         if (top & (1ULL << i)) return bits + i + 1;
     }
@@ -57,6 +63,11 @@ void bn_from_bytes(BigInt *a, const uint8_t *data, int len) {
         int shift = (byte_idx % 8) * 8;
         if (limb < a->len) a->limbs[limb] |= ((uint64_t)data[i]) << shift;
     }
+
+    // FIX: Normalize the length by trimming leading zero limbs
+    while (a->len > 1 && a->limbs[a->len - 1] == 0) {
+        a->len--;
+    }
 }
 
 void bn_to_bytes(const BigInt *a, uint8_t *out) {
@@ -72,9 +83,18 @@ void bn_to_bytes(const BigInt *a, uint8_t *out) {
 }
 
 int bn_cmp(const BigInt *a, const BigInt *b) {
-    if (a->len > b->len) return 1;
-    if (a->len < b->len) return -1;
-    for (int i = a->len - 1; i >= 0; i--) {
+    // Dynamically calculate actual lengths ignoring trailing zeros
+    int len_a = a->len;
+    while (len_a > 1 && a->limbs[len_a - 1] == 0) len_a--;
+
+    int len_b = b->len;
+    // FIX: Changed b_len to len_b
+    while (len_b > 1 && b->limbs[len_b - 1] == 0) len_b--;
+
+    if (len_a > len_b) return 1;
+    if (len_a < len_b) return -1;
+
+    for (int i = len_a - 1; i >= 0; i--) {
         if (a->limbs[i] > b->limbs[i]) return 1;
         if (a->limbs[i] < b->limbs[i]) return -1;
     }

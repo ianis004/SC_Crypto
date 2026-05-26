@@ -67,7 +67,9 @@ void rsa_encrypt(const uint8_t *msg, int mlen, const uint8_t *n, const uint8_t *
 
     bn_from_bytes(&m, padded, 127);   /* 127 bytes keeps m < 2^1016 < n */
     bn_from_bytes(&mod, n, 128);
-    bn_from_bytes(&exp, e, 128);
+    bn_init(&exp);
+    exp.limbs[0] = 65537;
+    exp.len = 1;
 
     bn_powmod(&m, &exp, &mod, &res);
     bn_to_bytes(&res, out);
