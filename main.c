@@ -35,7 +35,6 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    // --- RSA KEY GENERATION ---
     if (mode == 'g') {
         if (strcmp(algo, "rsa") != 0) {
             fprintf(stderr, "Key generation is only supported for rsa algorithm in this mode.\n");
@@ -59,7 +58,6 @@ int main(int argc, char *argv[]) {
         return 0;
     }
 
-    // --- ENCRYPTION / DECRYPTION ---
     FILE *fin = fopen(infile, "rb");
     FILE *fout = fopen(outfile, "wb");
     FILE *fkey = fopen(keyfile, "rb");
@@ -72,7 +70,6 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    // 1. PURE SYMMETRIC (Salsa20 / ChaCha20)
     if (strcmp(algo, "salsa20") == 0 || strcmp(algo, "chacha20") == 0) {
         uint8_t key[32];
         if (fread(key, 1, 32, fkey) != 32) {
@@ -85,7 +82,6 @@ int main(int argc, char *argv[]) {
         uint32_t block_ctr = 0;
         size_t nread;
 
-        // FIX: Allocate large chunks on heap to prevent Stack Overflow
         uint8_t *buf = malloc(CHUNK_SIZE);
         uint8_t *outbuf = malloc(CHUNK_SIZE);
         if (!buf || !outbuf) {
@@ -102,7 +98,6 @@ int main(int argc, char *argv[]) {
         free(buf);
         free(outbuf);
 
-    // 2. PURE RSA (For small files only)
     } else if (strcmp(algo, "rsa") == 0) {
         uint8_t n[128], e[128], d[128];
         if (fread(n, 1, 128, fkey) != 128 || fread(e, 1, 128, fkey) != 128 || fread(d, 1, 128, fkey) != 128) {
@@ -132,7 +127,6 @@ int main(int argc, char *argv[]) {
             }
         }
 
-    // 3. HYBRID MODE (RSA + Salsa20 for large files)
     } else if (strcmp(algo, "hybrid") == 0) {
         uint8_t n[128], e[128], d[128];
         if (fread(n, 1, 128, fkey) != 128 || fread(e, 1, 128, fkey) != 128 || fread(d, 1, 128, fkey) != 128) {
@@ -153,50 +147,43 @@ int main(int argc, char *argv[]) {
         }
 
         if (mode == 'e') {
-            // Generate a random 32-byte session key
             uint8_t session_key[32];
-            srand((unsigned int)time(NULL));
+            srand((unsigned)time(NULL) ^ (unsigned)clock() ^ (unsigned)(uintptr_t)&session_key);
             for (int i = 0; i < 32; i++) session_key[i] = rand() & 0xFF;
 
-            // Encrypt the session key with RSA and write it to the file
             uint8_t encrypted_key[128];
             rsa_encrypt(session_key, 32, n, e, encrypted_key, 128);
             fwrite(encrypted_key, 1, 128, fout);
 
-            // Encrypt the bulk data using Salsa20 and the session key
             while ((nread = fread(buf, 1, CHUNK_SIZE, fin)) > 0) {
                 stream_ctr_crypt(buf, nread, session_key, nonce, block_ctr, "salsa20", outbuf);
                 fwrite(outbuf, 1, nread, fout);
                 block_ctr += (nread + 63) / 64;
             }
         } else {
-            printf("[DEBUG] Reading encrypted header...\n");
             uint8_t encrypted_key[128];
             if (fread(encrypted_key, 1, 128, fin) != 128) {
                 fprintf(stderr, "File too small or missing header\n");
                 free(buf); free(outbuf); fclose(fin); fclose(fout); fclose(fkey);
                 return 1;
             }
-            printf("[DEBUG] Starting RSA decryption (this may take a few seconds)...\n");
             uint8_t decrypted_key_buffer[128];
             memset(decrypted_key_buffer, 0, 128);
             rsa_decrypt(encrypted_key, 128, n, d, decrypted_key_buffer, 128);
 
-            printf("[DEBUG] RSA decryption finished!\n");
             uint8_t session_key[32];
             int key_len = decrypted_key_buffer[0];
             if (key_len != 32) {
-                fprintf(stderr, "Warning: Expected a 32-byte session key, got length %d. Attempting recovery...\n", key_len);
+                fprintf(stderr, "Warning: Expected a 32-byte session key, this key is %d.\n", key_len);
             }
             memcpy(session_key, &decrypted_key_buffer[1], 32);
 
-            printf("[DEBUG] Starting Salsa20 bulk decryption...\n");
             while ((nread = fread(buf, 1, CHUNK_SIZE, fin)) > 0) {
                 stream_ctr_crypt(buf, nread, session_key, nonce, block_ctr, "salsa20", outbuf);
                 fwrite(outbuf, 1, nread, fout);
                 block_ctr += (nread + 63) / 64;
             }
-            printf("[DEBUG] Decryption complete!\n")
+
         }
 
         free(buf);
@@ -211,7 +198,7 @@ int main(int argc, char *argv[]) {
     fclose(fin);
     fclose(fout);
     fclose(fkey);
-    printf("Done. %s %s -> %s using %s\n", mode == 'e' ? "Encrypted" : "Decrypted", infile, outfile, algo);
+    printf("%s %s -> %s using %s\n", mode == 'e' ? "Encrypted" : "Decrypted", infile, outfile, algo);
     return 0;
 }
 
@@ -224,8 +211,15 @@ int main(int argc, char *argv[]) {
 // .\cmake-build-debug\Latino_encrypt -e plaintext.txt -k rsa_key.bin -o output.enc -a rsa
 // .\cmake-build-debug\Latino_encrypt -d output.enc -k rsa_key.bin -o decrypted.txt -a rsa
 // Compare the texts : Compare-Object (Get-Content .\plaintext.txt) (Get-Content .\decrypted.txt)
-// If this returns nothing, you are good!
 // 5mb test
 // .\cmake-build-debug\Latino_encrypt.exe -g -k rsa_key.bin -a rsa
 // Measure-Command { .\cmake-build-debug\Latino_encrypt.exe -e test_5mb.bin -k rsa_key.bin -o test_5mb_rsa.enc -a rsa }
 // Measure-Command { .\cmake-build-debug\Latino_encrypt.exe -d test_5mb_rsa.enc -k rsa_key.bin -o test_5mb_rsa.dec -a rsa }
+// Get-FileHash .\test_5mb.bin, .\test_5mb_rsa.dec
+// .\cmake-build-debug\Latino_encrypt -e test_5mb.bin -k rsa_key.bin -o test_5mb_rsa.enc -a hybrid
+// .\cmake-build-debug\Latino_encrypt -d test_5mb_rsa.enc  -k rsa_key.bin -o test_5mb_rsa.dec -a hybrid
+
+//4gb test
+// Measure-Command { .\cmake-build-debug\Latino_encrypt.exe -e test_4gb.bin -k key.bin -o test_4gb.enc -a chacha20 }
+// Measure-Command { .\cmake-build-debug\Latino_encrypt.exe -d test_4gb.enc -k key.bin -o test_4gb.dec -a chacha20 }
+// Get-FileHash .\test_4gb.bin, .\test_4gb.dec

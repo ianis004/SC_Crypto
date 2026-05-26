@@ -4,8 +4,6 @@
 #include <time.h>
 
 static uint64_t rand64(void) {
-    // rand() may return only 15 bits (RAND_MAX=32767 on MSVC).
-    // 5 calls × 15 bits = 75 bits, enough to fill 64.
     uint64_t r = 0;
     for (int i = 0; i < 5; i++)
         r = (r << 15) | ((uint64_t)(rand() & 0x7FFF));
@@ -13,8 +11,6 @@ static uint64_t rand64(void) {
 }
 
 #define LIMB_BITS 64
-
-// Miller-Rabin primality test line 276
 
 void bn_init(BigInt *a) {
     memset(a->limbs, 0, sizeof(a->limbs));
@@ -39,7 +35,6 @@ static int bn_get_bit(const BigInt *a, int bit) {
 static int bn_bitlen(const BigInt *a) {
     if (a->len == 0 || bn_is_zero(a)) return 0;
 
-    // Find the true top limb
     int actual_len = a->len;
     while (actual_len > 1 && a->limbs[actual_len - 1] == 0) actual_len--;
 
@@ -64,7 +59,6 @@ void bn_from_bytes(BigInt *a, const uint8_t *data, int len) {
         if (limb < a->len) a->limbs[limb] |= ((uint64_t)data[i]) << shift;
     }
 
-    // FIX: Normalize the length by trimming leading zero limbs
     while (a->len > 1 && a->limbs[a->len - 1] == 0) {
         a->len--;
     }
@@ -83,7 +77,6 @@ void bn_to_bytes(const BigInt *a, uint8_t *out) {
 }
 
 int bn_cmp(const BigInt *a, const BigInt *b) {
-    // Dynamically calculate actual lengths ignoring trailing zeros
     int len_a = a->len;
     while (len_a > 1 && a->limbs[len_a - 1] == 0) len_a--;
 
@@ -176,17 +169,14 @@ void bn_mod(const BigInt *a, const BigInt *m, BigInt *res) {
         int limb_shift = i / LIMB_BITS;
         int bit_shift = i % LIMB_BITS;
 
-        // Securely shift limbs ensuring we don't breach BN_MAX_LIMBS
         for (int j = m->len - 1; j >= 0; j--) {
             if (j + limb_shift < BN_MAX_LIMBS) {
                 shifted.limbs[j + limb_shift] = m->limbs[j];
             }
         }
-        // Explicitly set length and cap it safely
         shifted.len = m->len + limb_shift;
         if (shifted.len > BN_MAX_LIMBS) shifted.len = BN_MAX_LIMBS;
 
-        // Securely shift bits
         if (bit_shift > 0) {
             uint64_t carry = 0;
             for (int j = 0; j < shifted.len; j++) {
@@ -247,8 +237,6 @@ int bn_gcd(const BigInt *a, const BigInt *b, BigInt *res) {
     return !bn_is_zero(res);
 }
 
-// 1. New High-Speed Bit-Shift Division Helper
-// 1. New High-Speed Bit-Shift Division Helper
 void bn_divmod(const BigInt *a, const BigInt *m, BigInt *num_q, BigInt *num_r) {
     bn_init(num_q);
     bn_init(num_r);
@@ -268,7 +256,6 @@ void bn_divmod(const BigInt *a, const BigInt *m, BigInt *num_q, BigInt *num_r) {
         BigInt temp, shifted;
         bn_init(&temp);
 
-        // --- YOUR NEW SAFE SHIFT CODE GOES HERE ---
         bn_init(&shifted);
         int limb_shift = i / LIMB_BITS;
         int bit_shift = i % LIMB_BITS;
@@ -280,9 +267,6 @@ void bn_divmod(const BigInt *a, const BigInt *m, BigInt *num_q, BigInt *num_r) {
         }
         shifted.len = m->len + limb_shift;
         if (shifted.len > BN_MAX_LIMBS) shifted.len = BN_MAX_LIMBS;
-        // ------------------------------------------
-
-        // Securely shift remaining bits
         if (bit_shift > 0) {
             uint64_t carry = 0;
             for (int j = 0; j < shifted.len; j++) {
@@ -309,7 +293,6 @@ void bn_divmod(const BigInt *a, const BigInt *m, BigInt *num_q, BigInt *num_r) {
     }
     while (num_q->len > 1 && num_q->limbs[num_q->len - 1] == 0) num_q->len--;
 }
-// 2. Clear out your old bn_egcd function completely, we can do modular inverse directly and safely here:
 int bn_modinv(const BigInt *a, const BigInt *m, BigInt *res) {
     BigInt old_r, r, x0, x1;
     memcpy(&old_r, a, sizeof(BigInt));
@@ -318,7 +301,7 @@ int bn_modinv(const BigInt *a, const BigInt *m, BigInt *res) {
     bn_init(&x0); x0.limbs[0] = 1; x0.len = 1;
     bn_init(&x1);
 
-    int x0_sign = 1; // 1 means positive, 0 means negative
+    int x0_sign = 1;
     int x1_sign = 1;
 
     while (!bn_is_zero(&r)) {
@@ -357,7 +340,7 @@ int bn_modinv(const BigInt *a, const BigInt *m, BigInt *res) {
     BigInt one;
     bn_init(&one); one.limbs[0] = 1; one.len = 1;
     if (bn_cmp(&old_r, &one) != 0) {
-        return 0; // Not invertible
+        return 0; // not invertible
     }
 
     if (x0_sign == 0) {
@@ -433,7 +416,7 @@ static int bn_miller_rabin(const BigInt *n, int rounds) {
 }
 
 int bn_rand_prime(BigInt *p, int bits) {
-    srand(time(NULL) ^ (rand() << 16));
+    srand((unsigned)time(NULL) ^ (unsigned)clock() ^ (unsigned)(uintptr_t)&bits);
 
     for (int attempts = 0; attempts < 100; attempts++) {
         bn_init(p);
