@@ -16,25 +16,29 @@ void rsa_genkey(int bits, uint8_t *pub, uint8_t *priv, uint8_t *n_out) {
     memset(pub, 0, 128);
     memset(priv, 0, 128);
 
-    bn_rand_prime(&p, bits/2);
-    bn_rand_prime(&q, bits/2);
-    while (bn_cmp(&p, &q) == 0) bn_rand_prime(&q, bits/2);
-
-    bn_mul(&p, &q, &n);
-
-    BigInt one;
-    bn_init(&one);
-    one.limbs[0] = 1;
-    one.len = 1;
-
-    bn_sub(&p, &one, &p_minus_1);
-    bn_sub(&q, &one, &q_minus_1);
-    bn_mul(&p_minus_1, &q_minus_1, &phi);
-
     e.limbs[0] = 65537;
     e.len = 1;
+    
+    while (1) {
+        bn_rand_prime(&p, bits/2);
+        bn_rand_prime(&q, bits/2);
+        while (bn_cmp(&p, &q) == 0) bn_rand_prime(&q, bits/2);
 
-    bn_modinv(&e, &phi, &d);
+        bn_mul(&p, &q, &n);
+
+        BigInt one;
+        bn_init(&one);
+        one.limbs[0] = 1;
+        one.len = 1;
+
+        bn_sub(&p, &one, &p_minus_1);
+        bn_sub(&q, &one, &q_minus_1);
+        bn_mul(&p_minus_1, &q_minus_1, &phi);
+
+        if (bn_modinv(&e, &phi, &d)) {
+            break;
+        }
+    }
 
     bn_to_bytes(&n, n_out);
     bn_to_bytes(&e, pub);

@@ -416,9 +416,8 @@ static int bn_miller_rabin(const BigInt *n, int rounds) {
 }
 
 int bn_rand_prime(BigInt *p, int bits) {
-    srand((unsigned)time(NULL) ^ (unsigned)clock() ^ (unsigned)(uintptr_t)&bits);
-
-    for (int attempts = 0; attempts < 100; attempts++) {
+    srand(time(NULL) ^ (rand() << 16));
+    while (1) {
         bn_init(p);
         p->len = (bits + 63) / 64;
 
@@ -426,13 +425,12 @@ int bn_rand_prime(BigInt *p, int bits) {
             p->limbs[i] = rand64();
         }
 
-        p->limbs[p->len - 1] |= (1ULL << (bits - 1) % 64);
+        p->limbs[p->len - 1] |= (1ULL << ((bits - 1) % 64));
         p->limbs[0] |= 1;
 
         if (bn_miller_rabin(p, 40)) {
             return 1;
         }
     }
-
     return 0;
 }

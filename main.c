@@ -41,7 +41,7 @@ int main(int argc, char *argv[]) {
             return 1;
         }
         uint8_t e[128], d[128], n[128];
-        printf("Generating 1024-bit RSA key pair\n");
+        printf("Generating 1024-bit RSA key\n");
         rsa_genkey(1024, e, d, n);
 
         FILE *fkey_out = fopen(keyfile, "wb");
@@ -148,7 +148,7 @@ int main(int argc, char *argv[]) {
 
         if (mode == 'e') {
             uint8_t session_key[32];
-            srand((unsigned)time(NULL) ^ (unsigned)clock() ^ (unsigned)(uintptr_t)&session_key);
+            srand((unsigned int)time(NULL));
             for (int i = 0; i < 32; i++) session_key[i] = rand() & 0xFF;
 
             uint8_t encrypted_key[128];
@@ -172,10 +172,6 @@ int main(int argc, char *argv[]) {
             rsa_decrypt(encrypted_key, 128, n, d, decrypted_key_buffer, 128);
 
             uint8_t session_key[32];
-            int key_len = decrypted_key_buffer[0];
-            if (key_len != 32) {
-                fprintf(stderr, "Warning: Expected a 32-byte session key, this key is %d.\n", key_len);
-            }
             memcpy(session_key, &decrypted_key_buffer[1], 32);
 
             while ((nread = fread(buf, 1, CHUNK_SIZE, fin)) > 0) {
@@ -202,7 +198,7 @@ int main(int argc, char *argv[]) {
     return 0;
 }
 
-// Generate key: $bytes = [byte[]]::new(32); [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes); [System.IO.File]::WriteAllBytes("key.bin", $bytes)
+// Generate key: $by[byte[]]::new(32); [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes); [System.IO.File]::WriteAllBytes("key.bin", $bytes)tes =
 // Encrypt: .\cmake-build-debug\Latino_encrypt.exe -e plaintext.txt -k key.bin -o output.enc -a salsa20
 // Decrypt: .\cmake-build-debug\Latino_encrypt.exe -d output.enc -k key.bin -o decrypted.txt -a salsa20
 //
